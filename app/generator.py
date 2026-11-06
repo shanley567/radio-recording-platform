@@ -1,1 +1,5 @@
-print("generator starting")
+stations = [
+    "station-001",
+    "station-002",
+    "station-003"
+]
