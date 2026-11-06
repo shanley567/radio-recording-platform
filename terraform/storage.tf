@@ -1,5 +1,7 @@
 resource "aws_s3_bucket" "recordings" {
-  bucket = var.bucket_name
+  bucket        = var.bucket_name
+  force_destroy = true
+
 
   tags = {
     Project     = "radio-recording-platform"
