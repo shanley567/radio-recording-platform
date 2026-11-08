@@ -1,182 +1,115 @@
 # Radio Recording Platform
 
-A cloud-native synthetic data recording platform designed to simulate continuous radio stream recording workloads.
+A cloud-native synthetic data acquisition and recording platform designed to simulate continuous radio recording workloads using modern DevOps, SRE, Kubernetes, Terraform, and AWS practices.
 
-The platform continuously generates synthetic recording segments, stores outputs in Amazon S3, and is being developed using Infrastructure as Code, containerisation, CI/CD, and Kubernetes-based deployment patterns.
-
-This project is intended to demonstrate production-style DevOps, SRE, Cloud Engineering, and Platform Engineering practices.
+The project is being built incrementally using Infrastructure as Code and follows a production-style development approach where each layer is validated before additional complexity is introduced.
 
 ---
 
-## Project Objectives
+# Project Purpose
 
-The original business requirement is to support a platform that:
+The original use case is a platform capable of:
 
-- Runs continuously (24/7)
-- Records large numbers of radio streams
-- Stores recordings in object storage
-- Automatically scales with workload demand
-- Detects gaps in generated recordings
-- Provides operational visibility and monitoring
-- Is fully managed via Infrastructure as Code
+- Continuously recording radio streams
+- Persisting recordings to durable storage
+- Scaling as stream count increases
+- Detecting recording gaps
+- Providing operational visibility
+- Running with minimal manual intervention
 
-To simplify development and testing, radio recording workloads are currently represented using synthetic data generators that emulate recording activity.
+To simplify development and testing, synthetic recording segments are generated instead of real radio streams.
+
+These synthetic recordings allow the platform's architecture, observability, scalability and reliability to be demonstrated without depending on external radio providers.
 
 ---
 
-## Current Status
+# Current Status
 
-### Completed
+## Infrastructure
 
-#### Repository & CI/CD
+### Implemented
 
-- GitHub repository created
-- Branch-based development workflow established
-- GitHub Actions configured
-- Terraform validation workflow
-- Docker build validation workflow
-
-#### Infrastructure
-
-Provisioned using Terraform:
-
-- Amazon S3 Bucket
+- Terraform Repository Structure
+- AWS Provider Configuration
+- Variable-driven Terraform deployment
+- Amazon S3 Recording Bucket
 - S3 Versioning
 - S3 Encryption
 - S3 Public Access Blocking
 - Amazon ECR Repository
-- VPC
-- Public Subnets
+- AWS VPC
 - Private Subnets
+- Public Subnets
 - NAT Gateway
 - Internet Gateway
 - Route Tables
-
-#### Application
-
-- Python synthetic recording generator
-- Docker containerisation
-- Container image stored in Amazon ECR
-- Synthetic records uploaded to Amazon S3
-
----
+- Security Groups
 
 ### In Progress
 
-- Kubernetes deployment architecture
-- EKS cluster provisioning
-- Pod deployment strategy
-
----
+- Amazon EKS Cluster
+- EKS Managed Node Group
 
 ### Planned
 
-#### Platform
-
-- Amazon EKS
-- Managed Node Groups
-- Cluster Autoscaler
-
-#### Observability
-
-- Prometheus
-- Grafana
-- AlertManager
-
-#### SRE Features
-
-- Recording gap detection
-- Service Level Objectives (SLOs)
-- Error budgets
-- Alerting strategy
-- Runbooks
-
-#### Security
-
-- GitHub OIDC
 - IRSA
-- Least-privilege IAM
-- Network Policies
-- Secrets Management
+- OIDC Authentication
+- Cluster Autoscaler
+- Multi-Node Worker Pools
 
 ---
 
-# Architecture
+## Application
 
-Current architecture:
+### Implemented
 
-```text
-                    GitHub
-                       │
-                       ▼
+- Python Synthetic Generator
+- Docker Containerisation
+- Synthetic Recording Generation
+- S3 Upload Integration
+- Structured S3 Object Storage
 
-                GitHub Actions
-                       │
-                       ▼
+Generator creates synthetic recording metadata similar to:
 
-                  Terraform
-                       │
-         ┌─────────────┴─────────────┐
-         ▼                           ▼
-
-       Amazon S3                Amazon ECR
-         ▲                           ▲
-         │                           │
-         └─────────────┬─────────────┘
-                       │
-
-               Synthetic Generator
-
-                       │
-
-               JSON Recording Files
+```json
+{
+  "station_id": "station-001",
+  "timestamp": "2026-11-08T15:00:00Z",
+  "signal_strength": 97,
+  "status": "SUCCESS"
+}
 ```
 
-Target architecture:
+---
 
-```text
-                        GitHub
+## CI/CD
 
-                           │
+### Implemented
 
-                           ▼
+GitHub Actions workflows:
 
-                    GitHub Actions
+#### Terraform Validation
 
-                           │
+Validates:
 
-                           ▼
+- terraform fmt
+- terraform init
+- terraform validate
 
-                      Terraform
+#### Docker Build Validation
 
-                           │
+Validates:
 
-                           ▼
+- Docker image builds successfully
 
-                         AWS
+### Planned
 
-            ┌───────────────────────────┐
-            │            EKS            │
-            │                           │
-            │ Generator Pods            │
-            │                           │
-            └─────────────┬─────────────┘
-                          │
-
-                          ▼
-
-                        S3
-
-                          │
-
-                          ▼
-
-                Monitoring Stack
-
-                 Prometheus
-                 Grafana
-                 AlertManager
-```
+- TFLint
+- Checkov
+- Trivy
+- Automated Container Publishing
+- Kubernetes Deployment Workflow
+- Smoke Tests
 
 ---
 
@@ -193,16 +126,286 @@ radio-recording-platform/
 ├── app
 │   ├── generator.py
 │   ├── requirements.txt
-│   └── Dockerfile
+│   ├── Dockerfile
+│   └── stations.yaml
 │
 ├── docs
 │
 ├── kubernetes
 │
 ├── terraform
+│   ├── providers.tf
+│   ├── variables.tf
+│   ├── terraform.tfvars
+│   ├── storage.tf
+│   ├── ecr.tf
+│   ├── networking.tf
+│   ├── eks.tf
+│   └── outputs.tf
 │
 └── README.md
 ```
+
+---
+
+# Current Architecture
+
+```text
+                    GitHub
+
+                       │
+
+                       ▼
+
+                GitHub Actions
+
+                       │
+
+                       ▼
+
+                  Terraform
+
+          ┌────────────┼────────────┐
+
+          ▼            ▼            ▼
+
+         S3           ECR          VPC
+
+          ▲
+
+          │
+
+  Synthetic Generator
+
+          │
+
+          ▼
+
+   Synthetic Records
+```
+
+---
+
+# Synthetic Recording Workflow
+
+Current application workflow:
+
+```text
+Generator Starts
+
+      │
+
+      ▼
+
+Generate Synthetic Record
+
+      │
+
+      ▼
+
+Write Local JSON File
+
+      │
+
+      ▼
+
+Upload To S3
+
+      │
+
+      ▼
+
+Delete Local File
+```
+
+---
+
+# S3 Storage Structure
+
+Recordings are stored in a time-partitioned structure:
+
+```text
+station-001/
+
+└── 2026/
+    └── 11/
+        └── 08/
+            └── 15/
+                ├── xxxx.json
+                ├── xxxx.json
+                └── xxxx.json
+```
+
+Benefits:
+
+- Easier retention management
+- Faster navigation
+- Time-based partitioning
+- Data lake style organisation
+
+---
+
+# ECR Integration
+
+Implemented:
+
+```text
+Build Container
+       │
+       ▼
+Push To ECR
+       │
+       ▼
+Store Versioned Container Image
+```
+
+Repository:
+
+```text
+synthetic-generator
+```
+
+Container images are successfully built and published to Amazon ECR.
+
+---
+
+# Kubernetes Progress
+
+## Current State
+
+The EKS control plane has been successfully provisioned.
+
+Verified:
+
+```text
+Cluster Status: ACTIVE
+```
+
+Networking components:
+
+```text
+VPC
+Private Subnets
+Public Subnets
+NAT Gateway
+Security Groups
+```
+
+have been successfully deployed.
+
+---
+
+## Current Blocker
+
+Managed Node Group deployment identified a launch failure.
+
+### Root Cause
+
+Initial node configuration used:
+
+```text
+t3.medium
+```
+
+The AWS account rejected the launch because:
+
+```text
+The specified instance type is not eligible for Free Tier
+```
+
+AWS Auto Scaling activity logs were used to identify the exact failure reason.
+
+### Planned Resolution
+
+Switch worker nodes to:
+
+```text
+t3.micro
+```
+
+or
+
+```text
+t3a.micro
+```
+
+allowing successful worker node creation.
+
+This troubleshooting exercise provided valuable experience investigating:
+
+- EKS Node Groups
+- Auto Scaling Groups
+- EC2 Launch Failures
+- Terraform State
+- AWS Service Diagnostics
+
+---
+
+# Lessons Learned
+
+## Terraform State Management
+
+Encountered:
+
+```text
+Resource exists in AWS
+Terraform state unaware
+```
+
+Resolved using:
+
+```bash
+terraform import
+```
+
+where appropriate.
+
+---
+
+## S3 Versioning
+
+Version-enabled buckets cannot be deleted while object versions remain present.
+
+Improvement implemented:
+
+```terraform
+force_destroy = true
+```
+
+for development environments.
+
+---
+
+## Region Consistency
+
+Standardised project deployment region:
+
+```text
+eu-west-2
+```
+
+This eliminated regional mismatches between:
+
+- AWS CLI
+- Terraform
+- ECR
+- EKS
+
+---
+
+## EKS Troubleshooting
+
+Successfully diagnosed node launch failures using:
+
+```bash
+aws eks describe-nodegroup
+
+aws autoscaling describe-auto-scaling-groups
+
+aws autoscaling describe-scaling-activities
+```
+
+This highlighted the importance of using cloud-native diagnostics rather than relying solely on Terraform output.
 
 ---
 
@@ -214,6 +417,8 @@ radio-recording-platform/
 python -m pip install -r app\requirements.txt
 ```
 
+---
+
 ## Run Generator
 
 ```powershell
@@ -222,29 +427,33 @@ cd app
 python generator.py
 ```
 
+---
+
 ## Build Container
 
 ```powershell
 docker build -t synthetic-generator ./app
 ```
 
-## Run Container
+---
+
+## Push Image
 
 ```powershell
-docker run synthetic-generator
+docker push <ecr-repository-uri>
 ```
 
 ---
 
-# Infrastructure Deployment
+# Infrastructure Management
 
 ## Initialise Terraform
 
 ```powershell
-cd terraform
-
 terraform init
 ```
+
+---
 
 ## Review Changes
 
@@ -252,13 +461,17 @@ terraform init
 terraform plan
 ```
 
-## Deploy Infrastructure
+---
+
+## Deploy
 
 ```powershell
 terraform apply
 ```
 
-## Destroy Infrastructure
+---
+
+## Destroy
 
 ```powershell
 terraform destroy
@@ -266,134 +479,105 @@ terraform destroy
 
 ---
 
-# CI/CD
-
-The repository currently contains automated validation workflows.
-
-## Terraform Workflow
-
-Validates:
-
-- Terraform formatting
-- Terraform initialization
-- Terraform configuration validation
-
-## Build Workflow
-
-Validates:
-
-- Docker image builds successfully
-
-Future enhancements will include:
-
-- TFLint
-- Checkov
-- Trivy
-- Automated ECR pushes
-- Kubernetes deployments
-- Smoke testing
-
----
-
-# Current AWS Resources
-
-| Service          | Purpose                  |
-| ---------------- | ------------------------ |
-| S3               | Recording storage        |
-| ECR              | Container registry       |
-| VPC              | Network foundation       |
-| Subnets          | EKS networking           |
-| NAT Gateway      | Outbound internet access |
-| Internet Gateway | Public connectivity      |
-
-Deployment Region:
-
-```text
-eu-west-2
-```
-
----
-
-# Lessons Learned
-
-## S3 Versioning
-
-Version-enabled buckets cannot be destroyed while object versions remain present.
-
-Future improvements:
-
-```terraform
-force_destroy = true
-```
-
-for development environments.
-
-## Regional Consistency
-
-All infrastructure is standardised on:
-
-```text
-eu-west-2
-```
-
-to avoid provider and CLI region mismatches.
-
----
-
-# Roadmap
+# Project Roadmap
 
 ## Phase 1 ✅
 
 - Repository Setup
-- GitHub Actions
+- GitHub Workflows
 - Terraform Foundation
 - S3 Storage
-- ECR Registry
 - Synthetic Generator
+- Docker Build
+- ECR Repository
+- ECR Push
+
+---
 
 ## Phase 2 ✅
 
-- Container Build
-- Container Registry Integration
-- VPC Networking
+- VPC
+- Private Networking
+- Internet Gateway
+- NAT Gateway
 
-## Phase 3
+---
 
-- Amazon EKS
-- Kubernetes Deployment
-- Generator Pods
+## Phase 3 🚧
+
+- EKS Cluster
+- Managed Node Group
+- Kubectl Connectivity
+- Generator Deployment
+
+---
 
 ## Phase 4
 
 - Prometheus
 - Grafana
-- Alerting
+- AlertManager
+
+---
 
 ## Phase 5
 
 - Recording Gap Detection
+- Business Metrics
 - SLOs
 - Error Budgets
 - Runbooks
 
+---
+
 ## Phase 6
 
-- OIDC Authentication
+- OIDC
 - IRSA
 - Security Hardening
-- Production Deployment Pipelines
+- Multi-Environment Terraform
+- Production CI/CD
 
 ---
 
-# Author
+# Technologies
 
-Built as a cloud-native DevOps/SRE portfolio project demonstrating:
-
-- Terraform
 - AWS
+- Terraform
+- Amazon S3
+- Amazon ECR
+- Amazon EKS
+- Python
 - Docker
 - GitHub Actions
 - Kubernetes
-- Site Reliability Engineering
+
+---
+
+# Key DevOps & SRE Skills Demonstrated
+
 - Infrastructure as Code
-- Cloud Platform Engineering
+- Terraform State Management
+- AWS Networking
+- Containerisation
+- CI/CD Automation
+- Cloud Architecture
+- Kubernetes Operations
+- S3 Storage Design
+- Troubleshooting & Root Cause Analysis
+- Cost Optimisation
+- Platform Engineering Principles
+
+---
+
+# Current Resume Point
+
+Next session objectives:
+
+1. Fix Node Group instance type sizing
+2. Complete EKS worker provisioning
+3. Obtain successful `kubectl get nodes`
+4. Deploy synthetic generator to Kubernetes
+5. Verify generator uploads to S3 from EKS
+
+Once those milestones are complete, the project will transition from infrastructure provisioning into an operational Kubernetes platform.
