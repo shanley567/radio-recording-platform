@@ -6,6 +6,7 @@ module "eks" {
   name               = "radio-platform"
   kubernetes_version = "1.34"
 
+  enable_cluster_creator_admin_permissions = true
   endpoint_public_access = true
 
   vpc_id = module.vpc.vpc_id
