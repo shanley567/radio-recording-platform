@@ -18,10 +18,10 @@ module "eks" {
     default = {
 
       instance_types = ["t3.medium"]
-      
+
       # Spot instance to reduce costs during testing and development. 
       # Change to "ON_DEMAND" for production workloads.
-      capacity_type  = "SPOT" 
+      capacity_type = "SPOT"
 
       min_size     = 1
       max_size     = 2
