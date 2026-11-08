@@ -24,7 +24,7 @@ module "eks" {
 
       # Spot instance to reduce costs during testing and development. 
       # Change to "ON_DEMAND" for production workloads.
-    #   capacity_type = "SPOT"
+      #   capacity_type = "SPOT"
       capacity_type = "ON_DEMAND"
 
       min_size     = 1
