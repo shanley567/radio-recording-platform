@@ -17,7 +17,7 @@ module "eks" {
 
     default = {
 
-      instance_types = ["t3.medium"]
+      instance_types = ["t3.micro"]
 
       # Spot instance to reduce costs during testing and development. 
       # Change to "ON_DEMAND" for production workloads.
