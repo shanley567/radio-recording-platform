@@ -133,7 +133,7 @@ while True:
     )
 
     logger.info(
-        "Sleeping before next cycle | sleep_seconds=10"
+        "Sleeping before next cycle | sleep_seconds=60"
     )
 
-    time.sleep(10)
+    time.sleep(60)
