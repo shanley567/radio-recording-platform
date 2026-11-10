@@ -23,7 +23,7 @@ module "eks" {
     default = {
 
       instance_types = [
-        "t3.micro"
+        "t3.small"
       ]
 
       capacity_type = "ON_DEMAND"

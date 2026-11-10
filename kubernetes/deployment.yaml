@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: synthetic-generator
+  namespace: radio-platform
+
+spec:
+  replicas: 1
+
+  selector:
+    matchLabels:
+      app: synthetic-generator
+
+  template:
+    metadata:
+      labels:
+        app: synthetic-generator
+
+    spec:
+      serviceAccountName: synthetic-generator
+
+      containers:
+      - name: synthetic-generator
+
+        image: 548722508417.dkr.ecr.eu-west-2.amazonaws.com/synthetic-generator:latest
+
+        imagePullPolicy: Always
