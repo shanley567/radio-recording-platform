@@ -13,18 +13,19 @@ module "eks" {
 
   subnet_ids = module.vpc.private_subnets
 
-  eks_managed_node_groups = {
+  #   cluster_addons = {
+  # coredns    = {}
+  # kube-proxy = {}
+  # vpc-cni    = {}
+  #   }
 
+  eks_managed_node_groups = {
     default = {
 
       instance_types = [
-        "t3.micro",
-        "t3a.micro"
+        "t3.micro"
       ]
 
-      # Spot instance to reduce costs during testing and development. 
-      # Change to "ON_DEMAND" for production workloads.
-      #   capacity_type = "SPOT"
       capacity_type = "ON_DEMAND"
 
       min_size     = 1
