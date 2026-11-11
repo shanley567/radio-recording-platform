@@ -1,27 +1,33 @@
 module "eks" {
-
   source  = "terraform-aws-modules/eks/aws"
   version = "~> 21.0"
 
   name               = "radio-platform"
   kubernetes_version = "1.34"
 
+  addons = {
+    vpc-cni = {
+      before_compute = true
+      addon_version  = "v1.22.4-eksbuild.14"
+    }
+
+    kube-proxy = {
+      addon_version = "v1.34.6-eksbuild.69"
+    }
+
+    coredns = {
+      addon_version = "v1.12.4-eksbuild.82"
+    }
+  }
+
   enable_cluster_creator_admin_permissions = true
   endpoint_public_access                   = true
 
-  vpc_id = module.vpc.vpc_id
-
+  vpc_id     = module.vpc.vpc_id
   subnet_ids = module.vpc.private_subnets
-
-  #   cluster_addons = {
-  # coredns    = {}
-  # kube-proxy = {}
-  # vpc-cni    = {}
-  #   }
 
   eks_managed_node_groups = {
     default = {
-
       instance_types = [
         "t3.small"
       ]
