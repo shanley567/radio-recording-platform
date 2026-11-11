@@ -1,13 +1,12 @@
 locals {
   oidc_provider_url = replace(
-    data.aws_eks_cluster.this.identity[0].oidc[0].issuer,
+    module.eks.cluster_oidc_issuer_url,
     "https://",
     ""
   )
 }
 
 resource "aws_iam_policy" "generator_s3_upload" {
-
   name = "RadioPlatformS3UploadPolicy"
 
   policy = jsonencode({
@@ -28,18 +27,8 @@ resource "aws_iam_policy" "generator_s3_upload" {
   })
 }
 
-data "aws_eks_cluster" "this" {
-  name = module.eks.cluster_name
-}
-
-data "aws_iam_openid_connect_provider" "eks" {
-  url = data.aws_eks_cluster.this.identity[0].oidc[0].issuer
-}
-
 data "aws_iam_policy_document" "generator_assume_role" {
-
   statement {
-
     effect = "Allow"
 
     actions = [
@@ -50,7 +39,7 @@ data "aws_iam_policy_document" "generator_assume_role" {
       type = "Federated"
 
       identifiers = [
-        data.aws_iam_openid_connect_provider.eks.arn
+        module.eks.oidc_provider_arn
       ]
     }
 
@@ -67,16 +56,11 @@ data "aws_iam_policy_document" "generator_assume_role" {
 }
 
 resource "aws_iam_role" "generator" {
-
-  name = "radio-platform-generator"
-
+  name               = "radio-platform-generator"
   assume_role_policy = data.aws_iam_policy_document.generator_assume_role.json
 }
 
-
 resource "aws_iam_role_policy_attachment" "generator_s3" {
-
-  role = aws_iam_role.generator.name
-
+  role       = aws_iam_role.generator.name
   policy_arn = aws_iam_policy.generator_s3_upload.arn
 }

@@ -10,7 +10,7 @@ override.tf
 override.tf.json
 *_override.tf
 *_override.tf.json
-.terraform.lock.hcl
+*.terraform.lock.hcl
 
 # Optional: ignore local tfvars
 # Keep terraform.tfvars for this project for now
