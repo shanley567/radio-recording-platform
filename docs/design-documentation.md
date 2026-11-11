@@ -1,133 +1,77 @@
 # Radio Recording Platform
 
-# Solution Architecture and Design
+## Executive Summary
+
+The Radio Recording Platform is a cloud-native system designed to continuously capture audio streams from a configurable set of radio station URLs and make those recordings available to downstream consumers.
+
+The platform is designed to operate continuously, automatically recover from failures, scale as station counts change, and provide comprehensive operational visibility.
+
+It has been built using AWS, Terraform, Kubernetes, and modern Site Reliability Engineering (SRE) practices.
+
+The primary objective of the platform is to ensure that as much audio as possible is successfully recorded and made available for downstream processing while minimising manual operational effort.
 
 ---
 
-# 1. Executive Summary
+# Non-Technical Overview
 
-The Radio Recording Platform is a cloud-native recording system designed to continuously capture audio streams from a dynamic set of radio station URLs and make completed recordings available to downstream consumers.
-
-The platform is designed around DevOps, Platform Engineering, Kubernetes, AWS, and Site Reliability Engineering (SRE) principles.
-
-Key goals:
-
-- Minimise recording gaps
-- Recover automatically from failures
-- Provide strong operational visibility
-- Scale recording capacity as station count changes
-- Store recordings durably and reliably
-- Minimise manual intervention
-
-The target design can support growth from approximately:
-
-```text
-20 Stations
-
-to
-
-100+ Stations
-```
-
-without significant architectural changes.
-
----
-
-# 2. Non-Technical Overview
-
-A business requires continuous recording of radio streams from multiple stations.
-
-These recordings must remain available for analysis, processing, compliance, or archival purposes.
-
-The system should:
-
-- Record continuously
-- Store recordings reliably
-- Recover from failures automatically
-- Scale as additional stations are onboarded
-- Alert operators when recordings are missing
-
-The solution uses cloud-native infrastructure to automate recording, storage, monitoring, scaling, and recovery.
-
----
-
-# 3. Technical Overview
-
-The platform consists of four primary domains:
-
-```text
-Recording
-
-↓
-
-Storage
-
-↓
-
-Observability
-
-↓
-
-Operations
-```
-
-Recorder workloads execute within Amazon EKS and continuously ingest audio streams.
-
-Completed segments are uploaded to Amazon S3 where they become available to downstream systems.
-
-All infrastructure is managed through Terraform and workloads access AWS services using IAM Roles for Service Accounts (IRSA).
-
----
-
-# 4. Requirements
+Imagine a business that needs to continuously record dozens of radio stations every hour of every day.
 
 The platform must:
 
-1. Record continuously, aiming to minimise lost audio.
-2. Write recordings to durable object storage.
-3. Make recordings available to downstream systems.
-4. Scale with station count.
-5. Detect recording gaps.
-6. Provide operational monitoring and alerting.
-7. Recover automatically where practical.
-8. Operate with minimal manual intervention.
+- Record audio continuously.
+- Detect when recordings stop unexpectedly.
+- Store recordings safely and durably.
+- Scale as new stations are added.
+- Recover automatically when failures occur.
+- Provide visibility into platform health.
+
+As the number of stations grows from 20 to 100 or more, the platform should require little to no manual intervention.
+
+The solution uses cloud-native technologies to automate recording, storage, monitoring, recovery, and scaling.
 
 ---
 
-# 5. Scope and Assumptions
+# Business Problem
 
-## Current Prototype
+Radio stations provide continuous live-streamed audio.
 
-The portfolio project currently validates:
+The business requires:
 
-- Terraform infrastructure
-- Amazon EKS
-- Amazon S3
-- Amazon ECR
-- IRSA authentication
-- Kubernetes deployment
-- End-to-end object delivery
+- Continuous ingestion of audio streams
+- Minimal recording gaps
+- Long-term durable storage
+- Rapid scalability
+- Operational monitoring
+- Automated recovery
+- Cost-effective operation
 
-The current implementation generates synthetic JSON records.
+Expected growth:
 
-It does not yet record real audio streams.
+```text
+20 Stations
+    ↓
+50 Stations
+    ↓
+100+ Stations
+```
 
----
-
-## Assumptions
-
-- A recording binary exists or can be containerised.
-- Stations have unique identifiers and URLs.
-- Recordings are created as bounded segments.
-- Temporary local storage is available.
-- AWS is the primary deployment target.
-- Automatic recovery is preferred over manual intervention.
-
-The design reduces audio loss but cannot guarantee perfectly lossless recording during every upstream or infrastructure failure.
+The architecture must support growth without requiring redesign.
 
 ---
 
-# 6. High-Level Architecture
+# Technical Overview
+
+The platform is built as a collection of independent cloud-native services.
+
+Recorder workloads run inside Kubernetes and continuously record audio from configured URLs.
+
+Completed recording segments are uploaded to Amazon S3 where they become available to downstream consumers.
+
+Infrastructure is managed through Terraform and workloads authenticate using IAM Roles for Service Accounts (IRSA).
+
+---
+
+# Solution Architecture
 
 ```text
                  External Radio Streams
@@ -136,192 +80,111 @@ The design reduces audio loss but cannot guarantee perfectly lossless recording 
 
                            ▼
 
-            Station Configuration / Registry
+                  Amazon EKS Cluster
+
+       ┌───────────────────────────────────────┐
+
+       │             Recorder Pods            │
+
+       │                                       │
+
+       │  Stream Capture                       │
+
+       │  Segment Creation                     │
+
+       │  Upload To Storage                    │
+
+       └───────────────────────────────────────┘
 
                            │
 
                            ▼
 
-          Assignment And Desired-State Controller
-
-                           │
-
-      ┌────────────┬────────────┬────────────┐
-
-      ▼            ▼            ▼
-
- Recorder-1   Recorder-2   Recorder-N
-
-      │            │            │
-
-      └────────────┴────────────┘
+                  IAM Role (IRSA)
 
                            │
 
                            ▼
 
-                 Segment Generation
+                     Amazon S3
 
                            │
 
                            ▼
 
-                     Upload Service
+                 Downstream Consumers
 
                            │
 
                            ▼
 
-                       Amazon S3
-
-                   ┌──────────────┐
-                   │              │
-                   ▼              ▼
-
-         Gap Detection      Consumers
-
-                             Analytics
-                             Processing
+            Analytics / Gap Detection / ML
 ```
 
 ---
 
-# 7. AWS Architecture
+# AWS Infrastructure Architecture
 
 ```text
                              AWS Account
 
-┌────────────────────────────────────────────────────────────┐
-│                                                            │
-│                            VPC                             │
-│                                                            │
-│  ┌─────────────┐        ┌─────────────────────────────┐    │
-│  │ Public      │        │ Private Subnets            │    │
-│  │ Subnets     │        │                            │    │
-│  │             │        │ Amazon EKS Cluster        │    │
-│  │ NAT Gateway │───────▶│ Managed Node Groups       │    │
-│  └─────────────┘        │                            │    │
-│                         └────────────┬───────────────┘    │
-│                                      │                    │
-└──────────────────────────────────────┼────────────────────┘
-                                       │
-                                       ▼
+┌─────────────────────────────────────────────────────────────┐
+│                                                             │
+│                          VPC                                │
+│                                                             │
+│   ┌──────────────┐          ┌────────────────────────┐      │
+│   │ Public       │          │ Private Subnets        │      │
+│   │ Subnets      │          │                        │      │
+│   │              │          │ Amazon EKS            │      │
+│   │ NAT Gateway  │─────────▶│ Managed Node Group    │      │
+│   └──────────────┘          │                        │      │
+│                             └──────────┬─────────────┘      │
+│                                        │                    │
+└────────────────────────────────────────┼────────────────────┘
+                                         │
+                                         ▼
 
-                              Service Account
+                             Service Account
 
-                                       │
+                                         │
 
-                                       ▼
+                                         ▼
 
-                                 IAM Role
+                                 IAM Role (IRSA)
 
-                                       │
+                                         │
 
-                                       ▼
+                                         ▼
 
-                                  Amazon S3
+                                    Amazon S3
 ```
 
 ---
 
-# 8. Component Responsibilities
+# Recording Workflow
 
-## Station Registry
-
-Stores:
-
-- Station ID
-- Stream URL
-- Recording configuration
-- Enabled state
-
-Sensitive values should be stored using an approved secret management solution.
-
----
-
-## Assignment Controller
-
-Responsible for:
-
-- Determining required recorder count
-- Creating assignments
-- Detecting stalled recorders
-- Rebalancing workloads
-- Maintaining desired state
-
-Future enhancement.
-
----
-
-## Recorder Worker
-
-Responsible for:
-
-- Connecting to stream
-- Reconnecting after interruptions
-- Recording audio
-- Creating bounded segments
-- Uploading completed files
-- Reporting health signals
-
----
-
-## Object Storage
-
-Amazon S3 acts as the system of record.
-
-Responsibilities:
-
-- Durable storage
-- Retention
-- Lifecycle management
-- Consumer access
-
----
-
-## Gap Detection Service
-
-Responsible for:
-
-- Tracking expected recordings
-- Detecting missing segments
-- Measuring recording coverage
-- Generating alerts
-
-Future enhancement.
-
----
-
-# 9. Recording Workflow
-
-For each assigned station:
+Each recorder follows the same lifecycle:
 
 ```text
-Receive Assignment
-
-        │
-
-        ▼
-
 Connect To Stream
 
         │
 
         ▼
 
-Record Audio
+Capture Audio
 
         │
 
         ▼
 
-Create Segment
+Create Recording Segment
 
         │
 
         ▼
 
-Validate Segment
+Store Locally
 
         │
 
@@ -333,143 +196,77 @@ Upload To S3
 
         ▼
 
-Confirm Delivery
+Verify Upload
 
         │
 
         ▼
 
-Remove Local Copy
+Delete Local Copy
 
         │
 
         ▼
 
-Record Next Segment
+Continue Recording
 ```
-
-A segment is not considered delivered until upload is successfully confirmed.
 
 ---
 
-# 10. Storage Design
+# Storage Design
 
-Example object structure:
+Recordings are partitioned by station and time.
+
+Example:
 
 ```text
-recordings/
+station-001/
 
-  station-001/
-
-    year=2026/
-      month=11/
-        day=10/
-          hour=13/
-
-            2026-11-10T13-00-00Z__2026-11-10T13-05-00Z.wav
-
-            2026-11-10T13-05-00Z__2026-11-10T13-10-00Z.wav
+└── 2026/
+    └── 11/
+        └── 10/
+            └── 14/
+                ├── recording-0001.wav
+                ├── recording-0002.wav
+                └── recording-0003.wav
 ```
 
 Benefits:
 
-- Time partitioning
-- Analytical compatibility
-- Efficient querying
-- Lifecycle support
-- Retention management
+- Faster navigation
+- Time-based retrieval
+- Lifecycle policy support
+- Improved analytics performance
+- Data lake compatibility
 
 ---
 
-# 11. Reliability and Recovery
+# Scalability Strategy
 
-## Worker Failure
-
-Controls:
-
-- Health probes
-- Pod restart policies
-- Assignment recovery
-- Stuck-recorder detection
-
-A failed recorder should affect only its assigned station.
-
----
-
-## Stream Failure
-
-Controls:
-
-- Reconnection logic
-- Exponential backoff
-- Jitter
-- Failure metrics
-- Station-specific alerts
-
-A broken stream should not be confused with a failed worker.
-
----
-
-## Infrastructure Failure
-
-Controls:
-
-- Multi-AZ node placement
-- Managed node groups
-- Capacity buffers
-- Rolling updates
-- Controlled disruption
-
-Testing should validate recovery from:
-
-- Pod termination
-- Node failure
-- Stream interruption
-- Upload interruption
-
----
-
-# 12. Delivery Semantics
-
-The platform aims for:
+## Current Model
 
 ```text
-Eventual Delivery
+EKS Cluster
+
+    │
+
+    ▼
+
+Recorder Pods
 ```
 
-and
-
-```text
-Rapid Recovery
-```
-
-The design cannot guarantee 100% audio capture due to:
-
-- Source outages
-- Network failures
-- Infrastructure failures
-- Local storage failures
-
-Instead, the platform makes recording gaps observable and actionable.
+Each recorder can operate independently.
 
 ---
 
-# 13. Scaling Strategy
-
-The scaling unit is:
-
-```text
-Station Count
-```
-
-Example:
+## Future Scaling Model
 
 ```text
 20 Stations
 
 ↓
 
-20 Recorder Assignments
+20 Recorder Pods
 ```
 
 ```text
@@ -477,242 +274,398 @@ Example:
 
 ↓
 
-100 Recorder Assignments
+100 Recorder Pods
 ```
 
-Capacity planning should account for:
+Benefits:
 
-- CPU
-- Memory
-- Network throughput
-- Temporary disk usage
-- Reconnection behaviour
+- Horizontal scalability
+- Fault isolation
+- Predictable resource consumption
+- Easier operational management
 
 ---
 
-# 14. Monitoring and Observability
+## Scaling Mechanisms
+
+Horizontal scaling will be driven by:
+
+- Number of active stations
+- CPU utilisation
+- Memory utilisation
+- Queue depth
+- Recording workload demand
+
+Platform scaling components:
+
+```text
+Horizontal Pod Autoscaler
+
++
+
+Cluster Autoscaler
+```
+
+---
+
+# Reliability Design
+
+## Primary Objective
+
+Maximise successful audio capture.
+
+Example target:
+
+```text
+Recording Availability
+
+99.5%+
+```
+
+---
+
+## Reliability Controls
+
+Current and planned controls:
+
+- Kubernetes self-healing
+- Health probes
+- Managed node groups
+- Rolling deployments
+- Durable object storage
+- Alerting
+- Capacity planning
+- Disaster recovery testing
+
+---
+
+## Failure Domains
+
+Designed failure isolation:
+
+```text
+Single Stream Failure
+        │
+        ▼
+Single Pod Failure
+        │
+        ▼
+Restart Recorder
+```
+
+Rather than:
+
+```text
+Single Stream Failure
+        │
+        ▼
+Entire Platform Failure
+```
+
+---
+
+# Recording Gap Detection
+
+The most important business failure is missing audio.
+
+Future gap detection services will monitor expected recording frequency.
+
+Example:
+
+```text
+Expected
+
+station-001
+
+Recording Every Minute
+
+
+Observed
+
+No Recording For 10 Minutes
+
+
+Result
+
+Generate Alert
+```
+
+Potential causes:
+
+- Stream unavailable
+- Recorder failed
+- Upload failure
+- Platform outage
+
+---
+
+# Monitoring Strategy
 
 ## Recorder Workloads
 
-| Area | Signals |
+| Area | Signals to Monitor |
 |--------|--------|
-| Pod Health | Readiness |
-| Stability | Restarts |
-| Utilisation | CPU |
-| Utilisation | Memory |
-| Recording | Process health |
-| Recording | Failed captures |
+| Pod Health | Readiness failures |
+| Stability | Pod restarts |
+| Resources | CPU usage |
+| Resources | Memory usage |
+| Recording | Recorder process health |
+| Recording | Failed recording attempts |
+
+Example Alerts:
+
+```text
+Recorder Pod Not Ready
+
+High Restart Rate
+
+Recorder Process Failure
+```
 
 ---
 
 ## Kubernetes Capacity
 
-| Area | Signals |
+| Area | Signals to Monitor |
 |--------|--------|
-| Nodes | Node readiness |
-| Resources | Available CPU |
-| Resources | Available memory |
+| Cluster Health | Node readiness |
+| Compute | Available CPU |
+| Compute | Available memory |
 | Scheduling | Pending pods |
-| Scaling | Autoscaling activity |
+| Scheduling | Failed scheduling events |
+| Capacity | Pod availability |
+| Scaling | Autoscaler activity |
+
+Example Alerts:
+
+```text
+Node Not Ready
+
+Pods Pending > 5 Minutes
+
+Cluster Capacity Exhausted
+```
 
 ---
 
 ## Application Delivery
 
-| Area | Signals |
+| Area | Signals to Monitor |
 |--------|--------|
-| Uploads | Success rate |
-| Uploads | Failure rate |
-| Uploads | Upload latency |
-| Delivery | Retries |
-| Delivery | Backlog size |
+| Uploads | Upload success rate |
+| Uploads | Upload failure rate |
+| Performance | Upload latency |
+| Reliability | Retry count |
+| Throughput | Segments processed |
+| Delivery | Upload backlog |
+
+Example Alerts:
+
+```text
+Upload Failure Rate Above Threshold
+
+Upload Latency Exceeds SLO
+```
 
 ---
 
 ## Network and Dependencies
 
-| Area | Signals |
+| Area | Signals to Monitor |
 |--------|--------|
 | DNS | Resolution failures |
 | Streams | Connection failures |
-| Streams | Timeout rate |
-| AWS | S3 failures |
-| AWS | STS failures |
+| Streams | Timeout rates |
+| AWS | S3 connectivity |
+| AWS | STS authentication failures |
+
+Example Alerts:
+
+```text
+Station Stream Unreachable
+
+DNS Failure Rate High
+
+AWS Credential Failure
+```
 
 ---
 
 ## Storage
 
-| Area | Signals |
+| Area | Signals to Monitor |
 |--------|--------|
 | S3 | Upload failures |
+| S3 | Bucket growth |
 | S3 | Object growth |
-| S3 | Access failures |
-| Local Storage | Disk usage |
+| Nodes | Local disk utilisation |
+| Nodes | Temporary storage utilisation |
+
+Example Alerts:
+
+```text
+Disk Usage Above 80%
+
+Upload Failures Detected
+```
 
 ---
 
-## Observability Platform
+## Observability Pipeline
 
-| Area | Signals |
+| Area | Signals to Monitor |
 |--------|--------|
 | Prometheus | Scrape health |
-| Grafana | Availability |
-| AlertManager | Delivery success |
-| Logging | Ingestion health |
+| Grafana | Dashboard availability |
+| AlertManager | Alert delivery |
+| Logging | Log ingestion health |
+| Monitoring | Missing metrics |
 
----
-
-# 15. Service Level Indicators
-
-Key SLIs:
-
-## Recording Coverage
+Example Alerts:
 
 ```text
-Delivered Audio Time
+Metrics Missing
 
-÷
-
-Expected Audio Time
+Alert Delivery Failure
 ```
 
 ---
 
-## Gap Duration
+# SRE Operating Model
+
+The platform measures success using business outcomes rather than infrastructure metrics alone.
+
+Infrastructure metrics answer:
 
 ```text
-Missing Recording Time
+Is the platform healthy?
+```
 
-Per Station
+Business metrics answer:
 
-Per Reporting Window
+```text
+Are recordings actually being captured?
+```
+
+The most important KPI is:
+
+```text
+Expected Recordings
+
+vs
+
+Missing Recordings
 ```
 
 ---
 
-## Segment Delivery Delay
+# Security Architecture
 
-```text
-Segment Completion
+Security controls include:
 
-↓
+- IAM Roles for Service Accounts (IRSA)
+- Least privilege IAM policies
+- Encryption at rest
+- Encryption in transit
+- Centralised secret management
+- Access logging
+- Dependency patching
+- Security scanning
 
-Bucket Availability
-```
-
----
-
-## Station Recovery Time
-
-```text
-Failure Detection
-
-↓
-
-Recording Resumed
-```
+No long-lived AWS credentials are stored inside containers.
 
 ---
 
-## Healthy Station Ratio
-
-```text
-Healthy Stations
-
-÷
-
-Enabled Stations
-```
-
----
-
-# 16. Alerting Philosophy
-
-Avoid alerting on every transient event.
-
-Alert when actionable intervention is required.
-
-Alerts should answer:
-
-- What failed?
-- Which station is affected?
-- What is the business impact?
-- What should the responder check first?
-
----
-
-# 17. Runbooks
-
-Minimum required runbooks:
-
-- Recording Gap Investigation
-- Recorder Crash Investigation
-- Pod Scheduling Failure
-- Node Failure
-- S3 Upload Failure
-- Upload Backlog Growth
-- Disk Pressure
-- Missing Metrics
-- Failed Alert Delivery
-
-Each runbook should document:
-
-- Impact assessment
-- Recovery procedure
-- Validation checks
-- Remaining recording gaps
-
----
-
-# 18. AWS Well-Architected Alignment
+# AWS Well-Architected Alignment
 
 ## Operational Excellence
 
+The platform uses:
+
 - Infrastructure as Code
-- CI/CD
 - Git workflows
+- Automated validation
+- CI/CD pipelines
 - Runbooks
 - Post-incident reviews
 
+---
+
 ## Security
 
-- IRSA
-- Least privilege
+The platform provides:
+
+- Least privilege access
+- IRSA authentication
 - Encryption
 - Auditability
 - Secret management
 
+---
+
 ## Reliability
 
-- Self-healing workloads
+The platform implements:
+
+- Kubernetes self-healing
 - Health checks
+- Managed infrastructure
 - Capacity planning
 - Recovery testing
 
+---
+
 ## Performance Efficiency
 
+The platform supports:
+
 - Horizontal scaling
-- Metrics-driven optimisation
 - Workload isolation
-
-## Cost Optimisation
-
-- Rightsizing
-- Autoscaling
-- Cost visibility
-
-## Sustainability
-
-- Efficient resource usage
-- Reduced idle capacity
-- Storage lifecycle management
+- Performance monitoring
+- Capacity forecasting
 
 ---
 
-# 19. Current Implementation Status
+## Cost Optimisation
 
-## Implemented
+The platform encourages:
+
+- Rightsized infrastructure
+- Autoscaling
+- Cost ownership
+- Resource lifecycle management
+- Visibility into operational spend
+
+---
+
+## Sustainability
+
+The platform supports:
+
+- Elastic workload scaling
+- Reduced idle capacity
+- Efficient resource utilisation
+- Storage lifecycle optimisation
+
+---
+
+# Operational Runbooks
+
+Key runbooks should include:
+
+- Recorder Pod Failure
+- Station Stream Failure
+- S3 Upload Failure
+- EKS Node Failure
+- High Restart Rate
+- Missing Recording Investigation
+- Disaster Recovery Testing
+
+---
+
+# Current Project Status
+
+## Completed
 
 ✅ Terraform Infrastructure
 
@@ -726,43 +679,64 @@ Each runbook should document:
 
 ✅ Managed Node Groups
 
+✅ EKS Add-ons
+
 ✅ OIDC Provider
 
 ✅ IRSA
 
 ✅ Kubernetes Deployments
 
-✅ Structured Logging
+✅ Continuous Recording Generation
 
 ✅ End-to-End Upload Pipeline
 
-✅ S3 Validation
+✅ S3 Storage Validation
+
+✅ Production-style Logging
 
 ---
 
-## Planned
+## Next Deliverables
 
-- Real Audio Recording
-- Assignment Controller
-- Gap Detection Service
 - Prometheus
 - Grafana
 - AlertManager
-- Autoscaling
-- SLO Reporting
-- Production CI/CD
+- Recording Gap Detection Service
+- Service Level Objectives (SLOs)
+- Error Budgets
+- Operational Runbooks
+- Production CI/CD Pipeline
+- Disaster Recovery Testing
 
 ---
 
-# 20. Success Criteria
+# Technology Stack
 
-The platform is considered production ready when it can:
+- AWS
+- Terraform
+- Amazon EKS
+- Amazon S3
+- Amazon ECR
+- Kubernetes
+- Python
+- Docker
+- GitHub Actions
+- IAM Roles for Service Accounts (IRSA)
+- Prometheus (Planned)
+- Grafana (Planned)
 
-- Record continuously 24/7
+---
+
+# Success Criteria
+
+The platform will be considered production-ready when it can:
+
+- Continuously record streams 24/7
+- Automatically recover from failures
+- Detect missing recordings
 - Scale from 20 to 100+ stations
-- Detect recording gaps
-- Recover automatically from expected failures
 - Meet defined SLOs
-- Provide actionable observability
+- Provide actionable operational visibility
+- Support disaster recovery procedures
 - Operate with minimal manual intervention
-- Support disaster recovery testing
