@@ -1,91 +1,119 @@
 # Radio Recording Platform
 
-A cloud-native synthetic data acquisition and recording platform designed to simulate continuous radio recording workloads using modern DevOps, SRE, Kubernetes, Terraform, and AWS practices.
+A cloud-native platform prototype for generating, storing, and operating recording data on AWS. It demonstrates infrastructure as code, containerized workloads on Kubernetes, workload identity, and delivery to durable object storage.
 
-The project is being built incrementally using Infrastructure as Code and follows a production-style development approach where each layer is validated before additional complexity is introduced.
+The current application generates **synthetic recording metadata**. It does not yet capture live radio audio. The architecture and roadmap describe how the prototype can evolve toward that capability.
 
----
+> **Design reference:** [Solution Architecture and Design](docs/design-documentation.md)
 
-# Project Purpose
+## Contents
 
-The original use case is a platform capable of:
+- [Project status](#project-status)
+- [Architecture](#architecture)
+- [Current data flow](#current-data-flow)
+- [Repository layout](#repository-layout)
+- [Run locally](#run-locally)
+- [Infrastructure workflows](#infrastructure-workflows)
+- [Security and operational principles](#security-and-operational-principles)
+- [Roadmap](#roadmap)
+- [Technology stack](#technology-stack)
 
-- Continuously recording radio streams
-- Persisting recordings to durable storage
-- Scaling as stream count increases
-- Detecting recording gaps
-- Providing operational visibility
-- Running with minimal manual intervention
+## Project status
 
-To simplify development and testing, synthetic recording segments are generated instead of real radio streams.
+| Area | Status |
+| --- | --- |
+| AWS infrastructure provisioned with Terraform | Implemented |
+| Amazon EKS cluster and managed node group | Implemented |
+| Containerized Python synthetic generator | Implemented |
+| Kubernetes deployment and IRSA workload identity | Implemented |
+| Synthetic data uploaded to Amazon S3 | Implemented |
+| Terraform and Docker build validation in GitHub Actions | Implemented |
+| Live audio capture and station assignment controller | Planned |
+| Recording-gap detection, metrics, dashboards, and alerting | Planned |
+| Production deployment automation and multi-environment support | Planned |
 
-These synthetic recordings allow the platform's architecture, observability, scalability, and reliability to be demonstrated without depending on external radio providers.
+The prototype validates an end-to-end path from a Kubernetes workload to S3. Production readiness will require additional reliability, security, observability, and operational work; see the [design document](docs/design-documentation.md) for target requirements and component responsibilities.
 
----
+## Architecture
 
-# Current Status
+### Implemented prototype
 
-## Infrastructure
+```text
+GitHub Actions
+      │
+      ├── Terraform validation
+      └── Docker build validation
+              │
+              ▼
+       AWS infrastructure
+       ├── Amazon VPC
+       ├── Amazon EKS
+       ├── Amazon ECR
+       └── Amazon S3
+              │
+              ▼
+       EKS workload
+       ├── Synthetic Python generator
+       └── Kubernetes service account
+              │
+              ▼
+             IRSA
+              │
+              ▼
+        Amazon S3 bucket
+```
 
-### Implemented
+The application uses IAM Roles for Service Accounts (IRSA) to access S3 without embedding AWS credentials in the container.
 
-- Terraform Repository Structure
-- AWS Provider Configuration
-- Variable-driven Terraform Deployment
-- Amazon S3 Recording Bucket
-- S3 Versioning
-- S3 Encryption
-- S3 Public Access Blocking
-- Amazon ECR Repository
-- AWS VPC
-- Private Subnets
-- Public Subnets
-- NAT Gateway
-- Internet Gateway
-- Route Tables
-- Security Groups
-- Amazon EKS Cluster
-- EKS Managed Node Group
-- EKS Add-ons
-  - VPC CNI
-  - CoreDNS
-  - kube-proxy
-- OIDC Provider
-- IAM Roles for Service Accounts (IRSA)
-- Kubernetes Namespace
-- Kubernetes Service Account
-- EKS to S3 Authentication
+### Target architecture
 
-### In Progress
+The design documentation describes an evolution from a single synthetic generator to independently managed station recordings:
 
-- Platform Observability
-- Prometheus Metrics
-- Grafana Dashboards
+```text
+Radio streams
+      │
+      ▼
+Station registry and desired-state controller
+      │
+      ├── Recorder worker: station A
+      ├── Recorder worker: station B
+      └── Recorder worker: station N
+                 │
+                 ▼
+        Bounded recording segments
+                 │
+                 ▼
+       Validated, retryable uploads
+                 │
+                 ▼
+            Amazon S3
+           ├── Downstream consumers
+           └── Gap detection and alerting
+```
 
-### Planned
+This target separates station configuration, workload assignment, recording, delivery, and gap detection. It is intended to support growth in station count without changing the core storage and operations model.
 
-- Recording Gap Detection
-- Alerting
-- Horizontal Pod Autoscaling
-- Multi-Environment Deployment
-- Production CI/CD
+## Current data flow
 
----
+The synthetic generator currently creates JSON records, writes them locally, uploads them to S3, and removes the local file after delivery.
 
-## Application
+```text
+Generate synthetic record
+          │
+          ▼
+Write local JSON file
+          │
+          ▼
+Upload to S3 using IRSA
+          │
+          ▼
+Remove local file
+          │
+          ▼
+Repeat
+```
 
-### Implemented
-
-- Python Synthetic Generator
-- Docker Containerisation
-- Structured Application Logging
-- Synthetic Recording Generation
-- Kubernetes Deployment
-- IAM-authenticated S3 Uploads (IRSA)
-- Structured S3 Object Storage
-- Automatic Local File Cleanup
-
-Generator creates synthetic recording metadata similar to:
+Example record:
 
 ```json
 {
@@ -96,791 +124,152 @@ Generator creates synthetic recording metadata similar to:
 }
 ```
 
-Current workflow:
+Objects are organized by station and time to support navigation, lifecycle policies, and downstream analytics. The future audio workflow will use bounded segments and should treat a segment as delivered only after a successful upload confirmation.
+
+## Repository layout
 
 ```text
-Generator Starts
-
-      │
-
-      ▼
-
-Generate Synthetic Record
-
-      │
-
-      ▼
-
-Write Local JSON File
-
-      │
-
-      ▼
-
-Upload To S3
-
-      │
-
-      ▼
-
-Delete Local File
-
-      │
-
-      ▼
-
-Repeat Every 10 Seconds
-```
-
----
-
-## CI/CD
-
-### Implemented
-
-GitHub Actions workflows:
-
-#### Terraform Validation
-
-Validates:
-
-- terraform fmt
-- terraform init
-- terraform validate
-
-#### Docker Build Validation
-
-Validates:
-
-- Docker image builds successfully
-
-### Planned
-
-- TFLint
-- Checkov
-- Trivy
-- Automated Container Publishing
-- Kubernetes Deployment Workflow
-- Smoke Tests
-
----
-
-# Repository Structure
-
-```text
-radio-recording-platform/
-
-├── .github
-│   └── workflows
-│       ├── build.yml
-│       └── terraform.yml
-│
-├── app
-│   ├── generator.py
+.
+├── .github/
+│   └── workflows/       # Terraform and container build validation
+├── app/
+│   ├── generator.py     # Synthetic record generator
 │   ├── requirements.txt
 │   ├── Dockerfile
 │   └── stations.yaml
-│
-├── docs
-│
-├── kubernetes
-│   ├── namespace.yaml
-│   ├── serviceaccount.yaml
-│   └── deployment.yaml
-│
-├── terraform
-│   ├── providers.tf
-│   ├── variables.tf
-│   ├── terraform.tfvars
-│   ├── storage.tf
-│   ├── ecr.tf
-│   ├── networking.tf
-│   ├── eks.tf
-│   ├── iam.tf
-│   └── outputs.tf
-│
+├── docs/
+│   └── design-documentation.md
+├── kubernetes/          # Namespace, service account, and deployment manifests
+├── terraform/           # AWS infrastructure definitions
 └── README.md
 ```
 
----
+## Run locally
 
-# Current Architecture
+### Prerequisites
 
-```text
-                    GitHub
+- Python and pip
+- Docker, if building the container
+- AWS CLI and valid AWS credentials, if testing uploads to AWS
+- Terraform and `kubectl` for infrastructure and cluster workflows
 
-                       │
-
-                       ▼
-
-                GitHub Actions
-
-                       │
-
-                       ▼
-
-                  Terraform
-
-          ┌────────────┼────────────┐
-
-          ▼            ▼            ▼
-
-         S3           ECR          EKS
-
-                                      │
-
-                                      ▼
-
-                            Managed Node Group
-
-                                      │
-
-                                      ▼
-
-                            Synthetic Generator
-
-                                      │
-
-                                      ▼
-
-                                    IRSA
-
-                                      │
-
-                                      ▼
-
-                                     S3
-```
-
----
-
-# Synthetic Recording Workflow
-
-Current application workflow:
-
-```text
-Generator
-
-      │
-
-      ▼
-
-Generate Synthetic Record
-
-      │
-
-      ▼
-
-Write Local JSON File
-
-      │
-
-      ▼
-
-Upload To S3
-
-      │
-
-      ▼
-
-Delete Local File
-
-      │
-
-      ▼
-
-Repeat
-```
-
----
-
-# S3 Storage Structure
-
-Recordings are stored in a time-partitioned structure:
-
-```text
-station-001/
-
-└── 2026/
-    └── 11/
-        └── 10/
-            └── 13/
-                ├── 1794317730.json
-                ├── 1794317737.json
-                └── 1794317747.json
-```
-
-Benefits:
-
-- Easier retention management
-- Faster navigation
-- Time-based partitioning
-- Data lake style organisation
-- Future analytics compatibility
-
----
-
-# ECR Integration
-
-Implemented:
-
-```text
-Build Container
-       │
-       ▼
-Push To ECR
-       │
-       ▼
-Store Versioned Container Image
-       │
-       ▼
-Deploy To Kubernetes
-```
-
-Repository:
-
-```text
-synthetic-generator
-```
-
-Container images are successfully built, stored in ECR, and deployed to Amazon EKS.
-
----
-
-# Kubernetes Progress
-
-## Current State
-
-Amazon EKS has been successfully deployed and validated.
-
-Verified:
-
-```text
-✅ EKS Cluster Active
-
-✅ Managed Node Group Running
-
-✅ Kubernetes Node Ready
-
-✅ CoreDNS Running
-
-✅ kube-proxy Running
-
-✅ aws-node Running
-
-✅ kubectl Connectivity
-
-✅ Generator Deployment Running
-
-✅ IRSA Authentication Working
-
-✅ S3 Uploads Successful
-```
-
-Deployment Components:
-
-```text
-Namespace:
-radio-platform
-
-Deployment:
-synthetic-generator
-
-Service Account:
-synthetic-generator
-
-Authentication:
-IRSA
-```
-
----
-
-## Successful End-to-End Workflow
-
-Validated workflow:
-
-```text
-Python
-
-   ↓
-
-Docker Image
-
-   ↓
-
-Amazon ECR
-
-   ↓
-
-Amazon EKS
-
-   ↓
-
-IRSA Authentication
-
-   ↓
-
-Amazon S3
-```
-
-Verified S3 object creation:
-
-```text
-station-001/2026/11/10/13/1794317730.json
-station-002/2026/11/10/13/1794317828.json
-station-003/2026/11/10/13/1794317869.json
-```
-
----
-
-# Lessons Learned
-
-## Terraform State Management
-
-Encountered:
-
-```text
-Resource exists in AWS
-Terraform state unaware
-```
-
-Resolved using:
+Install the Python dependencies:
 
 ```bash
-terraform import
+python -m pip install -r app/requirements.txt
 ```
 
-where appropriate.
-
----
-
-## S3 Versioning
-
-Version-enabled buckets cannot be deleted while object versions remain present.
-
-Improvement implemented:
-
-```terraform
-force_destroy = true
-```
-
-for development environments.
-
----
-
-## Region Consistency
-
-Standardised project deployment region:
-
-```text
-eu-west-2
-```
-
-This eliminated regional mismatches between:
-
-- AWS CLI
-- Terraform
-- ECR
-- EKS
-
----
-
-## EKS Troubleshooting
-
-Successfully diagnosed node launch failures using:
+Run the generator:
 
 ```bash
-aws eks describe-nodegroup
-
-aws autoscaling describe-auto-scaling-groups
-
-aws autoscaling describe-scaling-activities
+python app/generator.py
 ```
 
-This highlighted the importance of using cloud-native diagnostics rather than relying solely on Terraform output.
-
----
-
-## Kubernetes Troubleshooting
-
-Successfully diagnosed and resolved:
-
-### EKS Node Group Provisioning Failure
-
-Symptoms:
-
-```text
-Node group stuck in CREATING
-```
-
-Root Cause:
-
-```text
-Unsupported instance type
-```
-
-Resolution:
-
-```terraform
-instance_types = ["t3.micro"]
-```
-
----
-
-### Node Registration Failure
-
-Symptoms:
-
-```text
-NodeCreationFailure
-```
-
-Root Cause:
-
-```text
-Missing EKS Add-ons
-```
-
-Investigation:
-
-```bash
-kubectl describe node
-aws eks list-addons
-```
-
-Resolution:
-
-```text
-CoreDNS
-kube-proxy
-vpc-cni
-```
-
----
-
-### Pod Scheduling Failure
-
-Symptoms:
-
-```text
-Pending
-```
-
-Error:
-
-```text
-Too many pods
-```
-
-Root Cause:
-
-```text
-t3.micro capacity limitation
-```
-
-Resolution:
-
-```text
-Increase worker node size
-Reduce CoreDNS replicas
-```
-
----
-
-### ECR Deployment Failure
-
-Symptoms:
-
-```text
-ImagePullBackOff
-```
-
-Root Cause:
-
-```text
-Empty ECR repository
-```
-
-Resolution:
-
-```bash
-docker build
-docker push
-```
-
----
-
-### Application Startup Failure
-
-Symptoms:
-
-```text
-CrashLoopBackOff
-```
-
-Root Cause:
-
-```text
-Missing boto3 dependency
-```
-
-Resolution:
-
-```text
-Install Python dependencies during Docker image build
-```
-
----
-
-### AWS Authentication Failure
-
-Symptoms:
-
-```text
-Files generated locally but not uploaded to S3
-```
-
-Investigation:
-
-```python
-boto3.client("sts").get_caller_identity()
-```
-
-Result:
-
-```text
-NoCredentialsError
-```
-
-Root Cause:
-
-```text
-Kubernetes workload lacked AWS credentials
-```
-
-Resolution:
-
-```text
-Implemented IRSA
-IAM Role
-OIDC Trust
-Service Account Annotation
-```
-
----
-
-# Local Development
-
-## Install Dependencies
+On Windows PowerShell, the equivalent commands are:
 
 ```powershell
 python -m pip install -r app\requirements.txt
+python app\generator.py
 ```
 
----
+### Build the container
 
-## Run Generator
+Run from the repository root:
 
-```powershell
-cd app
-
-python generator.py
-```
-
----
-
-## Build Container
-
-```powershell
+```bash
 docker build -t synthetic-generator ./app
 ```
 
----
+Pushing an image requires an authenticated AWS account and the appropriate ECR repository URI:
 
-## Push Image
-
-```powershell
+```bash
 docker push <ecr-repository-uri>
 ```
 
----
+## Infrastructure workflows
 
-# Infrastructure Management
+Run Terraform commands from the directory containing the Terraform root configuration:
 
-## Initialise Terraform
-
-```powershell
+```bash
+cd terraform
 terraform init
-```
-
----
-
-## Review Changes
-
-```powershell
+terraform fmt -check
+terraform validate
 terraform plan
 ```
 
----
+Review the plan before applying infrastructure changes:
 
-## Deploy
-
-```powershell
+```bash
 terraform apply
 ```
 
----
+To remove a development environment:
 
-## Destroy
-
-```powershell
+```bash
 terraform destroy
 ```
 
----
+> **Caution:** `apply` and `destroy` change real AWS resources and may incur costs or delete data. Review the Terraform plan, confirm the AWS account and region, and understand the S3 bucket’s deletion and retention settings before proceeding.
 
-# Project Roadmap
+Supply environment-specific values through an appropriate local configuration or approved secret-management process. Do not commit credentials, access keys, or sensitive `terraform.tfvars` values.
 
-## Phase 1 ✅
+## Storage
 
-- Repository Setup
-- GitHub Workflows
-- Terraform Foundation
-- S3 Storage
-- Synthetic Generator
-- Docker Build
-- ECR Repository
-- ECR Push
-
----
-
-## Phase 2 ✅
-
-- VPC
-- Private Networking
-- Internet Gateway
-- NAT Gateway
-
----
-
-## Phase 3 ✅
-
-- EKS Cluster
-- Managed Node Group
-- Kubernetes Networking
-- Kubectl Connectivity
-- Generator Deployment
-- EKS Add-ons
-
----
-
-## Phase 4 ✅
-
-- OIDC Provider
-- IAM Roles for Service Accounts (IRSA)
-- Secure Kubernetes Authentication
-- End-to-End Recording Pipeline
-
----
-
-## Phase 5 🚧
-
-- Prometheus
-- Grafana
-- CloudWatch Integration
-
----
-
-## Phase 6
-
-- Recording Gap Detection
-- Business Metrics
-- SLOs
-- Error Budgets
-- Runbooks
-
----
-
-## Phase 7
-
-- Multi-Environment Terraform
-- Horizontal Pod Autoscaling
-- Production CI/CD
-- Security Hardening
-
----
-
-# Technologies
-
-- AWS
-- Terraform
-- Amazon S3
-- Amazon ECR
-- Amazon EKS
-- IAM Roles for Service Accounts (IRSA)
-- Python
-- Docker
-- Kubernetes
-- GitHub Actions
-
----
-
-# Key DevOps & SRE Skills Demonstrated
-
-- Infrastructure as Code
-- Terraform State Management
-- AWS Networking
-- EKS Operations
-- Kubernetes Troubleshooting
-- Containerisation
-- CI/CD Automation
-- Cloud Architecture
-- S3 Storage Design
-- IAM & OIDC Authentication
-- IRSA Implementation
-- Root Cause Analysis
-- Cost Optimisation
-- Platform Engineering Principles
-
----
-
-# Current Resume Point
-
-Successfully delivered a complete cloud-native recording platform:
+The prototype stores time-partitioned objects under station-specific prefixes, for example:
 
 ```text
-Terraform
-   ↓
-
-AWS Infrastructure
-   ↓
-
-Amazon EKS
-   ↓
-
-Dockerised Python Application
-   ↓
-
-IRSA Authentication
-   ↓
-
-Amazon S3 Storage
+station-001/2026/11/10/13/<timestamp>.json
 ```
 
-Key achievements:
+The target design uses a similar station-and-time layout for bounded audio segments. Before production use, define and document:
 
-- Built a complete AWS platform using Terraform
-- Successfully deployed workloads to Amazon EKS
-- Implemented secure AWS authentication using IRSA
-- Diagnosed and resolved multiple real-world Kubernetes issues
-- Delivered successful end-to-end data ingestion into S3
+- A stable object-key and segment-naming convention
+- Retention and lifecycle policies
+- Encryption and access-control requirements
+- Upload retry and duplicate-handling behavior
+- Recovery behavior for locally buffered segments
 
-## Next Session Objectives
+## Security and operational principles
 
-1. Add Prometheus Metrics
-2. Deploy Grafana
-3. Implement Recording Gap Detection
-4. Build Operational Dashboards
-5. Define Recording Availability SLOs
+The project follows these principles as it develops:
 
-The project now transitions from infrastructure delivery into observability, monitoring, and reliability engineering.
+- Use IRSA and least-privilege IAM policies for workload access to AWS.
+- Keep secrets out of source control, container images, and logs.
+- Keep S3 public access blocked and use encryption for stored data.
+- Validate infrastructure and container builds in CI.
+- Use bounded recording segments and confirm delivery before removing local copies.
+- Distinguish upstream stream failures from worker or infrastructure failures.
+- Monitor recording coverage, upload health, resource capacity, and storage usage.
+- Test recovery from pod, node, network, stream, and upload failures.
+
+These are design goals, not a claim that every production control is already implemented. See the [design documentation](docs/design-documentation.md) for the target reliability model, monitoring signals, service-level indicators, and runbooks.
+
+## Roadmap
+
+1. **Improve observability:** add application metrics, dashboards, and actionable alerts.
+2. **Detect gaps:** track expected recordings and report missing segments by station and time window.
+3. **Introduce real recording:** replace or extend the synthetic generator with a recorder that reconnects to streams and produces bounded segments.
+4. **Improve delivery resilience:** define retry, buffering, validation, and duplicate-handling behavior for segment uploads.
+5. **Manage station workloads:** add a registry and controller for assignments, stalled-worker detection, and rebalancing.
+6. **Harden delivery and operations:** add security scanning, deployment automation, environment separation, SLO reporting, and recovery testing.
+
+The target is to scale with station count, make recording gaps visible, and recover automatically where practical. The system cannot guarantee uninterrupted capture during source, network, or infrastructure failures; it should instead minimize loss and make gaps observable and actionable.
+
+## Technology stack
+
+- **Cloud:** AWS
+- **Infrastructure as code:** Terraform
+- **Compute and orchestration:** Amazon EKS, Kubernetes
+- **Container registry:** Amazon ECR
+- **Object storage:** Amazon S3
+- **Workload identity:** IAM Roles for Service Accounts (IRSA)
+- **Application:** Python
+- **Containerization:** Docker
+- **CI:** GitHub Actions
+
+## Design documentation
+
+For the detailed requirements, AWS architecture, component responsibilities, recording workflow, reliability strategy, observability signals, and production-readiness criteria, see:
+
+**[Solution Architecture and Design](docs/design-documentation.md)**
