@@ -135,7 +135,7 @@ Infrastructure is managed through Terraform and workloads authenticate using IAM
 │   ┌──────────────┐          ┌────────────────────────┐      │
 │   │ Public       │          │ Private Subnets        │      │
 │   │ Subnets      │          │                        │      │
-│   │              │          │ Amazon EKS            │      │
+│   │              │          │ Amazon EKS             │      │
 │   │ NAT Gateway  │─────────▶│ Managed Node Group    │      │
 │   └──────────────┘          │                        │      │
 │                             └──────────┬─────────────┘      │
@@ -403,14 +403,14 @@ Potential causes:
 
 ## Recorder Workloads
 
-| Area | Signals to Monitor |
-|--------|--------|
-| Pod Health | Readiness failures |
-| Stability | Pod restarts |
-| Resources | CPU usage |
-| Resources | Memory usage |
-| Recording | Recorder process health |
-| Recording | Failed recording attempts |
+| Area       | Signals to Monitor        |
+| ---------- | ------------------------- |
+| Pod Health | Readiness failures        |
+| Stability  | Pod restarts              |
+| Resources  | CPU usage                 |
+| Resources  | Memory usage              |
+| Recording  | Recorder process health   |
+| Recording  | Failed recording attempts |
 
 Example Alerts:
 
@@ -426,15 +426,15 @@ Recorder Process Failure
 
 ## Kubernetes Capacity
 
-| Area | Signals to Monitor |
-|--------|--------|
-| Cluster Health | Node readiness |
-| Compute | Available CPU |
-| Compute | Available memory |
-| Scheduling | Pending pods |
-| Scheduling | Failed scheduling events |
-| Capacity | Pod availability |
-| Scaling | Autoscaler activity |
+| Area           | Signals to Monitor       |
+| -------------- | ------------------------ |
+| Cluster Health | Node readiness           |
+| Compute        | Available CPU            |
+| Compute        | Available memory         |
+| Scheduling     | Pending pods             |
+| Scheduling     | Failed scheduling events |
+| Capacity       | Pod availability         |
+| Scaling        | Autoscaler activity      |
 
 Example Alerts:
 
@@ -450,14 +450,14 @@ Cluster Capacity Exhausted
 
 ## Application Delivery
 
-| Area | Signals to Monitor |
-|--------|--------|
-| Uploads | Upload success rate |
-| Uploads | Upload failure rate |
-| Performance | Upload latency |
-| Reliability | Retry count |
-| Throughput | Segments processed |
-| Delivery | Upload backlog |
+| Area        | Signals to Monitor  |
+| ----------- | ------------------- |
+| Uploads     | Upload success rate |
+| Uploads     | Upload failure rate |
+| Performance | Upload latency      |
+| Reliability | Retry count         |
+| Throughput  | Segments processed  |
+| Delivery    | Upload backlog      |
 
 Example Alerts:
 
@@ -471,13 +471,13 @@ Upload Latency Exceeds SLO
 
 ## Network and Dependencies
 
-| Area | Signals to Monitor |
-|--------|--------|
-| DNS | Resolution failures |
-| Streams | Connection failures |
-| Streams | Timeout rates |
-| AWS | S3 connectivity |
-| AWS | STS authentication failures |
+| Area    | Signals to Monitor          |
+| ------- | --------------------------- |
+| DNS     | Resolution failures         |
+| Streams | Connection failures         |
+| Streams | Timeout rates               |
+| AWS     | S3 connectivity             |
+| AWS     | STS authentication failures |
 
 Example Alerts:
 
@@ -493,12 +493,12 @@ AWS Credential Failure
 
 ## Storage
 
-| Area | Signals to Monitor |
-|--------|--------|
-| S3 | Upload failures |
-| S3 | Bucket growth |
-| S3 | Object growth |
-| Nodes | Local disk utilisation |
+| Area  | Signals to Monitor            |
+| ----- | ----------------------------- |
+| S3    | Upload failures               |
+| S3    | Bucket growth                 |
+| S3    | Object growth                 |
+| Nodes | Local disk utilisation        |
 | Nodes | Temporary storage utilisation |
 
 Example Alerts:
@@ -513,13 +513,13 @@ Upload Failures Detected
 
 ## Observability Pipeline
 
-| Area | Signals to Monitor |
-|--------|--------|
-| Prometheus | Scrape health |
-| Grafana | Dashboard availability |
-| AlertManager | Alert delivery |
-| Logging | Log ingestion health |
-| Monitoring | Missing metrics |
+| Area         | Signals to Monitor     |
+| ------------ | ---------------------- |
+| Prometheus   | Scrape health          |
+| Grafana      | Dashboard availability |
+| AlertManager | Alert delivery         |
+| Logging      | Log ingestion health   |
+| Monitoring   | Missing metrics        |
 
 Example Alerts:
 
