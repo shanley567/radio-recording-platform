@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+
+metadata:
+  name: synthetic-generator
+  namespace: radio-platform
+
+spec:
+  selector:
+    app: synthetic-generator
+
+  ports:
+  - name: metrics
+    port: 8000
+    targetPort: 8000

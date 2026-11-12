@@ -23,6 +23,10 @@ spec:
       containers:
       - name: synthetic-generator
 
-        image: 548722508417.dkr.ecr.eu-west-2.amazonaws.com/synthetic-generator:latest
+        image: 548722508417.dkr.ecr.eu-west-2.amazonaws.com/synthetic-generator:v0.2.0
 
         imagePullPolicy: Always
+
+        ports:
+        - containerPort: 8000
+          name: metrics
