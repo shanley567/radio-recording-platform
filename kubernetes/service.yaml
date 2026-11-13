@@ -5,6 +5,9 @@ metadata:
   name: synthetic-generator
   namespace: radio-platform
 
+  labels:
+    app: synthetic-generator
+
 spec:
   selector:
     app: synthetic-generator
