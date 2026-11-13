@@ -7,6 +7,7 @@ This is a runbook only and has not been added to the project repository.
 ## 1. Scope and assumptions
 
 The project currently:
+
 - Provisions AWS infrastructure with Terraform
 - Builds a Python container in `app/`
 - Pushes the image to Amazon ECR
@@ -15,6 +16,7 @@ The project currently:
 - Exposes Prometheus metrics at `/metrics` on port `8000`
 
 Important repo-specific details:
+
 - Terraform default region is `eu-west-2`
 - Terraform default bucket is `jsp-radio-recordings-bucket-2026-demo`
 - EKS cluster name is `radio-platform`
@@ -62,6 +64,7 @@ export IMAGE_TAG="$(git rev-parse --short HEAD)"
 ## 3. Provision AWS infrastructure
 
 Terraform code is in `terraform/` and creates:
+
 - VPC
 - EKS cluster
 - Managed node group
@@ -69,13 +72,13 @@ Terraform code is in `terraform/` and creates:
 - IAM role for IRSA
 - S3 bucket
 
-From the repo root:
+From the terraform/ root:
 
 ```bash
-terraform -chdir=terraform init
-terraform -chdir=terraform fmt -check
-terraform -chdir=terraform validate
-terraform -chdir=terraform plan
+terraform init
+terraform fmt -check
+terraform validate
+terraform plan
 ```
 
 Review the plan carefully. This can create real AWS resources and costs.
@@ -83,7 +86,7 @@ Review the plan carefully. This can create real AWS resources and costs.
 Then apply:
 
 ```bash
-terraform -chdir=terraform apply
+terraform apply
 ```
 
 Capture key outputs:
@@ -99,6 +102,7 @@ echo "Cluster: ${CLUSTER_NAME}"
 ```
 
 Important:
+
 - Check the bucket name and account are correct before proceeding.
 - The app source code contains a hard-coded `BUCKET_NAME`, so ensure it matches the Terraform-created bucket.
 - The service account annotation in `kubernetes/serviceaccount.yaml` must match the Terraform role ARN for your AWS account.
@@ -210,6 +214,7 @@ kubectl -n "${NAMESPACE}" get events --sort-by=.lastTimestamp
 ```
 
 Expected result:
+
 - One pod is Running and Ready
 - Deployment has desired replicas available
 - Service exposes port `8000`
@@ -227,6 +232,7 @@ kubectl -n "${NAMESPACE}" logs deployment/synthetic-generator --follow
 ```
 
 Look for:
+
 - Boot logs
 - Generation cycle started
 - Station processing
@@ -243,10 +249,12 @@ aws s3 ls "s3://${BUCKET_NAME}/" --recursive --human-readable | tail -30
 ```
 
 Expected:
+
 - Objects appear in prefixes like `station-001/...`, `station-002/...`, `station-003/...`
 - Files are created under date/time-based directories
 
 If you see `AccessDenied` or no uploads:
+
 - Confirm IRSA is working
 - Check the service account annotation
 - Validate the IAM trust policy and S3 upload policy
@@ -268,6 +276,7 @@ curl -fsS http://127.0.0.1:8000/metrics | grep -E '^(recordings_generated_total|
 You should see metrics in Prometheus text format.
 
 The app exports:
+
 - `recordings_generated_total`
 - `s3_upload_success_total`
 - `s3_upload_failure_total`
@@ -337,9 +346,11 @@ kubectl -n monitoring port-forward service/prometheus-kube-prometheus-prometheus
 ```
 
 Open:
+
 - http://localhost:9090
 
 Check:
+
 - Status → Targets
 - The target should show as `UP`
 
@@ -356,6 +367,7 @@ sum by (station) (increase(s3_upload_failure_total{namespace="radio-platform"}[1
 ```
 
 If the target is not `UP`, check:
+
 - `release: prometheus` label on the `ServiceMonitor`
 - `matchLabels: app: synthetic-generator` on the Service
 - Service port name is `metrics`
@@ -373,9 +385,11 @@ kubectl -n monitoring port-forward service/prometheus-grafana 3000:80
 ```
 
 Open:
+
 - http://localhost:3000
 
 Login:
+
 - Username: `admin`
 
 Get the Grafana password:
@@ -386,6 +400,7 @@ kubectl -n monitoring get secret prometheus-grafana \
 ```
 
 Once logged in:
+
 - Open Grafana Explore
 - Select the Prometheus data source
 - Run queries like:
@@ -411,6 +426,7 @@ histogram_quantile(0.95, sum by (le) (rate(generation_cycle_duration_seconds_buc
 ```
 
 Expected behavior:
+
 - Metrics should be scrapped successfully
 - Upload counters should increase over time
 - Duration histograms should show data
@@ -457,19 +473,23 @@ kubectl -n "${NAMESPACE}" rollout history deployment/synthetic-generator
 ## 13. Troubleshooting quick reference
 
 ### Pod is not starting
+
 ```bash
 kubectl -n "${NAMESPACE}" describe pod <pod-name>
 kubectl -n "${NAMESPACE}" logs deployment/synthetic-generator --previous
 ```
 
 ### Image pull failure
+
 ```bash
 kubectl -n "${NAMESPACE}" describe pod <pod-name>
 aws ecr describe-images --region "${AWS_REGION}" --repository-name synthetic-generator
 ```
 
 ### AccessDenied on S3 upload
+
 Check:
+
 - service account annotation
 - IAM trust relationship for IRSA
 - AWS role ARN
@@ -477,6 +497,7 @@ Check:
 - `s3:PutObject` permission on the actual bucket
 
 ### Metrics endpoint not reachable
+
 ```bash
 kubectl -n "${NAMESPACE}" get svc
 kubectl -n "${NAMESPACE}" get endpoints
@@ -485,6 +506,7 @@ curl -v http://127.0.0.1:8000/metrics
 ```
 
 ### Prometheus target is down
+
 ```bash
 kubectl -n monitoring get pods
 kubectl -n radio-platform get servicemonitor
@@ -492,12 +514,14 @@ kubectl -n monitoring port-forward service/prometheus-kube-prometheus-prometheus
 ```
 
 Then verify:
+
 - `ServiceMonitor` exists
 - target appears in Prometheus
 - the service label matches `app: synthetic-generator`
 - the port is named `metrics`
 
 ### Grafana no data
+
 - Confirm target is `UP`
 - Give Prometheus enough time to scrape
 - Use a recent time range
