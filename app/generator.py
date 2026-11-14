@@ -4,9 +4,16 @@ import random
 import time
 from datetime import UTC, datetime
 from pathlib import Path
+from threading import Thread
 
 import boto3
-from prometheus_client import Counter, Histogram, start_http_server
+from flask import Flask, Response
+from prometheus_client import (
+    CONTENT_TYPE_LATEST,
+    Counter,
+    Histogram,
+    generate_latest
+)
 
 BUCKET_NAME = "jsp-radio-recordings-bucket-2026-demo"
 
@@ -27,7 +34,13 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # ------------------------------------------------------------------
-# Prometheus Metrics
+# AWS CLIENTS
+# ------------------------------------------------------------------
+
+s3 = boto3.client("s3")
+
+# ------------------------------------------------------------------
+# PROMETHEUS METRICS
 # ------------------------------------------------------------------
 
 recordings_generated_total = Counter(
@@ -60,15 +73,69 @@ generation_cycle_duration_seconds = Histogram(
 )
 
 # ------------------------------------------------------------------
-# AWS Clients
+# FLASK APP
 # ------------------------------------------------------------------
 
-s3 = boto3.client("s3")
+app = Flask(__name__)
+
+
+@app.route("/health/live")
+def live():
+    """
+    Liveness probe.
+    Confirms the application process is alive.
+    """
+    return Response("OK", status=200)
+
+
+@app.route("/health/ready")
+def ready():
+    """
+    Readiness probe.
+    Confirms application can communicate with S3.
+    """
+
+    try:
+        s3.head_bucket(Bucket=BUCKET_NAME)
+        return Response("READY", status=200)
+
+    except Exception:
+        logger.exception("Readiness check failed")
+
+        return Response(
+            "NOT READY",
+            status=503
+        )
+
+
+@app.route("/metrics")
+def metrics():
+    """
+    Prometheus metrics endpoint.
+    """
+
+    return Response(
+        generate_latest(),
+        mimetype=CONTENT_TYPE_LATEST
+    )
+
+
+def start_web_server():
+    """
+    Starts Flask web server.
+    """
+
+    app.run(
+        host="0.0.0.0",
+        port=8000,
+        debug=False,
+        use_reloader=False
+    )
+
 
 # ------------------------------------------------------------------
-# Helper Functions
+# HELPER FUNCTIONS
 # ------------------------------------------------------------------
-
 
 def upload_file(filepath: Path, station: str) -> None:
     """
@@ -114,10 +181,13 @@ def upload_file(filepath: Path, station: str) -> None:
 
 
 # ------------------------------------------------------------------
-# Startup
+# STARTUP
 # ------------------------------------------------------------------
 
-start_http_server(8000)
+Thread(
+    target=start_web_server,
+    daemon=True
+).start()
 
 logger.info("===================================================")
 logger.info("Synthetic Generator Starting")
@@ -125,12 +195,14 @@ logger.info("Bucket: %s", BUCKET_NAME)
 logger.info("Stations Configured: %s", len(STATIONS))
 logger.info("Station List: %s", ", ".join(STATIONS))
 logger.info("Output Directory: %s", OUTPUT_DIR.absolute())
-logger.info("Prometheus Metrics Endpoint: http://0.0.0.0:8000/metrics")
+logger.info("Metrics Endpoint: http://0.0.0.0:8000/metrics")
+logger.info("Liveness Endpoint: http://0.0.0.0:8000/health/live")
+logger.info("Readiness Endpoint: http://0.0.0.0:8000/health/ready")
 logger.info("Generation Interval: 60 seconds")
 logger.info("===================================================")
 
 # ------------------------------------------------------------------
-# Main Processing Loop
+# MAIN PROCESSING LOOP
 # ------------------------------------------------------------------
 
 while True:
@@ -152,12 +224,19 @@ while True:
         }
 
         station_dir = OUTPUT_DIR / station
-        station_dir.mkdir(parents=True, exist_ok=True)
+        station_dir.mkdir(
+            parents=True,
+            exist_ok=True
+        )
 
         filename = station_dir / f"{int(time.time())}.json"
 
         with open(filename, "w") as file:
-            json.dump(payload, file)
+
+            json.dump(
+                payload,
+                file
+            )
 
         recordings_generated_total.labels(
             station=station
@@ -172,7 +251,10 @@ while True:
 
         try:
 
-            upload_file(filename, station)
+            upload_file(
+                filename,
+                station
+            )
 
             s3_upload_success_total.labels(
                 station=station
@@ -199,9 +281,14 @@ while True:
                 str(error)
             )
 
-    cycle_duration = round(time.time() - cycle_start, 2)
+    cycle_duration = round(
+        time.time() - cycle_start,
+        2
+    )
 
-    generation_cycle_duration_seconds.observe(cycle_duration)
+    generation_cycle_duration_seconds.observe(
+        cycle_duration
+    )
 
     logger.info(
         "Generation cycle completed | stations_processed=%s duration_seconds=%s",

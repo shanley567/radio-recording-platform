@@ -2,31 +2,136 @@ apiVersion: apps/v1
 kind: Deployment
 
 metadata:
+  # Name of the Kubernetes Deployment resource.
   name: synthetic-generator
+
+  # Namespace used to isolate application resources.
   namespace: radio-platform
 
 spec:
+
+  # Number of application pods to run.
+  # For this project a single replica is sufficient.
   replicas: 1
 
+  # Number of previous ReplicaSets retained for rollback.
+  revisionHistoryLimit: 5
+
+  # Defines how Kubernetes performs updates.
+  strategy:
+    type: RollingUpdate
+
+    rollingUpdate:
+      # Create one additional pod during deployment.
+      # Prevents downtime during upgrades.
+      maxSurge: 1
+
+      # Never take the existing pod offline before
+      # the replacement pod is healthy.
+      maxUnavailable: 0
+
+  # Deployment manages pods matching this label.
   selector:
     matchLabels:
       app: synthetic-generator
 
   template:
+
     metadata:
+
+      # Labels assigned to created pods.
       labels:
         app: synthetic-generator
 
     spec:
+
+      # Service account used for IRSA authentication.
+      # Allows pod access to S3 without AWS access keys.
       serviceAccountName: synthetic-generator
 
+      # Gives the application time to finish work
+      # before a pod is terminated.
+      terminationGracePeriodSeconds: 30
+
+      # Basic pod security hardening.
+      securityContext:
+
+        # Prevents the container running as root.
+        runAsNonRoot: true
+
       containers:
-      - name: synthetic-generator
 
-        image: 548722508417.dkr.ecr.eu-west-2.amazonaws.com/synthetic-generator:v0.3.0
+        - name: synthetic-generator
 
-        imagePullPolicy: Always
+          # Image stored in Amazon ECR.
+          image: 548722508417.dkr.ecr.eu-west-2.amazonaws.com/synthetic-generator:v0.4.0
 
-        ports:
-        - containerPort: 8000
-          name: metrics
+          # Always pull the latest image for this tag.
+          imagePullPolicy: Always
+
+          ports:
+
+            # Port serving:
+            # - /metrics
+            # - /health/live
+            # - /health/ready
+            - name: metrics
+              containerPort: 8000
+
+          # Startup probe prevents liveness checks from
+          # killing the pod during application startup.
+          startupProbe:
+
+            httpGet:
+              path: /health/live
+              port: 8000
+
+            # Allow up to:
+            # 30 × 5 seconds = 150 seconds startup time
+            failureThreshold: 30
+            periodSeconds: 5
+
+          # Liveness probe verifies the application
+          # process is still running.
+          #
+          # Failure causes Kubernetes to restart the pod.
+          livenessProbe:
+
+            httpGet:
+              path: /health/live
+              port: 8000
+
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+
+          # Readiness probe verifies the application is
+          # ready to receive traffic and access AWS services.
+          #
+          # Failure removes the pod from service routing
+          # without restarting it.
+          readinessProbe:
+
+            httpGet:
+              path: /health/ready
+              port: 8000
+
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+
+          # Resource governance.
+          #
+          # Requests reserve capacity on a node.
+          # Limits prevent runaway resource consumption.
+          resources:
+
+            requests:
+              cpu: 100m
+              memory: 128Mi
+
+            limits:
+              cpu: 500m
+              memory: 512Mi
