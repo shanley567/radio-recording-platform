@@ -1,0 +1,24 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+
+metadata:
+  name: synthetic-generator
+  namespace: monitoring
+
+  labels:
+    release: monitoring
+
+spec:
+
+  namespaceSelector:
+    matchNames:
+      - radio-platform
+
+  selector:
+    matchLabels:
+      app: synthetic-generator
+
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: 30s

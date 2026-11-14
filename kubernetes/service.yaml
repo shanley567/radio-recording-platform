@@ -5,11 +5,14 @@ metadata:
   name: synthetic-generator
   namespace: radio-platform
 
+  labels:
+    app: synthetic-generator
+
 spec:
   selector:
     app: synthetic-generator
 
   ports:
-  - name: metrics
-    port: 8000
-    targetPort: 8000
+    - name: metrics
+      port: 8000
+      targetPort: 8000
